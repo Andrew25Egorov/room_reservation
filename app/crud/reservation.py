@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.base import CRUDBase
@@ -15,7 +15,7 @@ class CRUDReservation(CRUDBase):
         self,
         # Добавляем звёздочку, чтобы обозначить, что все дальнейшие параметры
         # должны передаваться по ключу. Это позволит располагать
-        # параметры со значением по умолчанию перед параметрами без таких значений.
+        # параметры со значением по умолч перед параметрами без таких значений.
         *,
         from_reserve: datetime,
         to_reserve: datetime,
@@ -64,6 +64,28 @@ class CRUDReservation(CRUDBase):
         )
         result = await session.execute(select_stmt)
         return result.scalars().all()
+
+    # Новый метод
+    async def get_count_res_at_the_same_time(
+            self,
+            from_reserve: datetime,
+            to_reserve: datetime,
+            session: AsyncSession,
+    ) -> list[dict[str, int]]:
+        reservations = await session.execute(
+            # Получаем количество бронирований переговорок за период
+            select(Reservation.meetingroom_id,
+                   func.count(Reservation.meetingroom_id)).where(
+                Reservation.from_reserve >= from_reserve,
+                Reservation.to_reserve <= to_reserve
+            ).group_by(Reservation.meetingroom_id)
+        )
+        reservations = reservations.all()
+        res = [
+            {"meetingroom_id": room_id, "count": count}
+            for room_id, count in reservations
+        ]
+        return res
 
 
 reservation_crud = CRUDReservation(Reservation)
